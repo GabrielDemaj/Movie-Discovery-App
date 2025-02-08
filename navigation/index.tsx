@@ -18,12 +18,16 @@ export default function Navigation() {
       <Stack.Screen
         name="Home"
         component={HomeScreen}
-        options={{ title: "Categories" }}
+        options={{ title: "Home" }}
       />
       <Stack.Screen
         name="Category"
         component={CategoryScreen}
-        options={{ title: "Category Movies" }}
+        options={(params) => {
+          return {
+            title: params.route.params.categoryName,
+          };
+        }}
       />
       <Stack.Screen
         name="MovieDetails"

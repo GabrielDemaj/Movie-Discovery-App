@@ -1,4 +1,6 @@
 import { RootState } from "@/redux/store";
+import { getRandomColor } from "@/utils";
+import { useNavigation } from "@react-navigation/native";
 import React from "react";
 import {
   FlatList,
@@ -7,32 +9,45 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Animated, {
+  BounceInDown,
+  BounceInLeft,
+  BounceInRight,
+  Easing,
+} from "react-native-reanimated";
 import { useSelector } from "react-redux";
-
-const getRandomColor = () => {
-  const letters = "0123456789ABCDEF";
-  let color = "#";
-  for (let i = 0; i < 6; i++) {
-    color += letters[Math.floor(Math.random() * 16)];
-  }
-  return color;
-};
 
 const MovieGridScreen = () => {
   const categories = useSelector(
     (state: RootState) => state.categories.categories
   );
+  const { navigate } = useNavigation<any>();
 
-  const renderItem = ({ item }: { item: any }) => {
+  const renderItem = ({ item, index }: { item: any; index: number }) => {
     const randomColor = getRandomColor();
 
+    const animation =
+      index === categories.length - 1
+        ? BounceInDown.duration(700).easing(Easing.ease)
+        : index % 2 === 0
+        ? BounceInLeft.duration(700).easing(Easing.ease)
+        : BounceInRight.duration(700).easing(Easing.ease);
+
     return (
-      <TouchableOpacity
-        activeOpacity={0.6}
-        style={[styles.itemContainer, { backgroundColor: randomColor }]}
-      >
-        <Text style={styles.movieTitle}>{item.name}</Text>
-      </TouchableOpacity>
+      <Animated.View entering={animation} style={{ flex: 1 }}>
+        <TouchableOpacity
+          activeOpacity={0.6}
+          style={[styles.itemContainer, { backgroundColor: randomColor }]}
+          onPress={() =>
+            navigate("Category", {
+              categoryId: item.id,
+              categoryName: item.name,
+            })
+          }
+        >
+          <Text style={styles.movieTitle}>{item.name}</Text>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
