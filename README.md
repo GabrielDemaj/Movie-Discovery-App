@@ -48,3 +48,11 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+Caching Strategy
+This app implements caching to reduce the number of network requests and improve performance.
+
+React Query is used to manage data fetching, caching, and synchronization with the server.
+Caching is set for 5 minutes (staleTime: 1000 _ 60 _ 5), meaning once data is fetched, it will be considered fresh for 5 minutes before triggering a new fetch.
+Data is automatically cached and reused for any subsequent requests to the same API endpoints within the cache expiration window.
+On pull-to-refresh, the cache will be invalidated, and data will be refetched to ensure the user sees the latest content.
