@@ -51,19 +51,16 @@ const fetchMoviesByCategoryFromCache = async (categoryId: number) => {
   }
   return null;
 };
-
-const storeMoviesInCache = async (categoryId: number, data: any) => {
-  await AsyncStorage.setItem(`moviesCache-${categoryId}`, JSON.stringify(data));
-};
-
-const fetchMoviesByCategory = async (categoryId: number) => {
-  const cachedMovies = await fetchMoviesByCategoryFromCache(categoryId);
+const fetchMoviesByCategory = async (categoryId: number, page: number = 1) => {
+  // Fetch from cache based on categoryId and page
+  const cachedMovies = await AsyncStorage.getItem(`moviesCache-${categoryId}-page-${page}`);
+  
   if (cachedMovies) {
-    return cachedMovies;
+    return JSON.parse(cachedMovies);  // Return the cached data if available
   }
 
   const response = await fetch(
-    `${BASE_URL}/discover/movie?api_key=${API_KEY}&with_genres=${categoryId}`,
+    `${BASE_URL}/discover/movie?api_key=${API_KEY}&with_genres=${categoryId}&page=${page}`,
     {
       method: "GET",
       headers: {
@@ -72,13 +69,20 @@ const fetchMoviesByCategory = async (categoryId: number) => {
       },
     }
   );
-  // console.log("NOT fetchMoviesByCategoryFromCache");
+
   if (!response.ok) throw new Error("Failed to fetch movies for this category");
 
   const movies = await response.json();
-  storeMoviesInCache(categoryId, movies);
+  // Store the fetched page in cache
+  storeMoviesInCache(categoryId, page, movies);
   return movies;
 };
+
+// Store the movies in cache by categoryId and page
+const storeMoviesInCache = async (categoryId: number, page: number, data: any) => {
+  await AsyncStorage.setItem(`moviesCache-${categoryId}-page-${page}`, JSON.stringify(data));
+};
+
 
 const fetchSingleMovie = async (movieId: number) => {
   const cachedMovie = await AsyncStorage.getItem(`movieCache-${movieId}`);
@@ -97,4 +101,8 @@ const fetchSingleMovie = async (movieId: number) => {
   return movie;
 };
 
-export { fetchSingleMovie, fetchMoviesByCategory, fetchCategories, API_KEY };
+const clearStorageCache = async () => {
+  await AsyncStorage.clear();
+}
+
+export { fetchSingleMovie, fetchMoviesByCategory, fetchCategories, API_KEY,clearStorageCache };

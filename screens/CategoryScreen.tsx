@@ -8,94 +8,96 @@ import {
   TouchableOpacity,
   ImageBackground,
   TextInput,
+  RefreshControl,
 } from "react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useDispatch } from "react-redux";
 import { setMovies } from "../redux/moviesSlice";
 import { fetchMoviesByCategory } from "../services/api";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useDebounce } from "@/hooks/useDebounce";
 
-const useDebounce = (value: string, delay: number) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-};
-
-type Props = {};
-
-const CategoryScreen = (props: Props) => {
+const CategoryScreen = () => {
   const route = useRoute();
   const dispatch = useDispatch();
   const { navigate } = useNavigation<any>();
+  const queryClient = useQueryClient(); // This is used to interact with the query cache
 
-  const { categoryId, categoryName } = route.params as {
-    categoryId: number;
-    categoryName: string;
-  };
+  const { categoryId } = route.params as { categoryId: number };
 
-  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredMovies, setFilteredMovies] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const {
-    data: movieData,
+    data,
     isLoading,
     isError,
     error,
     refetch,
-  } = useQuery({
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ["movies", categoryId],
-    queryFn: () => fetchMoviesByCategory(categoryId),
+    queryFn: ({ pageParam = 1 }) =>
+      fetchMoviesByCategory(categoryId, pageParam),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      return lastPage.page < lastPage.total_pages
+        ? lastPage.page + 1
+        : undefined;
+    },
     staleTime: 1000 * 60 * 5,
   });
 
+  const movies = data?.pages.flatMap((page) => page.results) || [];
+
   useEffect(() => {
-    if (movieData) {
-      dispatch(setMovies(movieData.results));
-      setFilteredMovies(movieData.results);
+    if (movies.length > 0) {
+      dispatch(setMovies(movies));
     }
-  }, [movieData, dispatch]);
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  };
-
-  const handleSearch = (text: string) => {
-    setSearchQuery(text);
-  };
+  }, [movies, dispatch]);
+  console.log("darta", data);
 
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
-  useEffect(() => {
-    if (debouncedSearchQuery) {
-      const filtered = movieData?.results.filter((movie: any) =>
-        movie.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-      );
-      setFilteredMovies(filtered || []);
-    } else {
-      setFilteredMovies(movieData?.results || []);
+  const filteredMovies = movies.filter((movie) =>
+    movie.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+  );
+
+  const handleLoadMore = () => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
     }
-  }, [debouncedSearchQuery, movieData]);
+  };
 
-  if (isLoading) {
-    return <ActivityIndicator size="large" color="#0000ff" />;
-  }
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    // Invalidate and reset the query to refetch from the first page
+    queryClient.invalidateQueries({
+      queryKey: ["movies", categoryId],
+    });
+    await refetch(); // Fetch the first page of movies
+    setRefreshing(false);
+  };
 
-  if (isError) {
-    return <Text>Error: {(error as Error).message}</Text>;
-  }
+  if (isLoading) return <ActivityIndicator size="large" color="#0000ff" />;
+  if (isError) return <Text>Error: {(error as Error).message}</Text>;
+
+  const renderItem = ({ item }: any) => (
+    <TouchableOpacity
+      onPress={() => navigate("MovieDetails", { movieId: item.id })}
+      style={{ paddingHorizontal: 20 }}
+    >
+      <ImageBackground
+        source={{ uri: `https://image.tmdb.org/t/p/w500${item.poster_path}` }}
+        style={styles.movieContainer}
+        imageStyle={styles.movieBackgroundImage}
+      >
+        <Text style={styles.movieTitle}>{item.title}</Text>
+      </ImageBackground>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -103,31 +105,23 @@ const CategoryScreen = (props: Props) => {
         style={styles.searchInput}
         placeholder="Search movies by title"
         value={searchQuery}
-        onChangeText={handleSearch}
+        onChangeText={setSearchQuery}
       />
+
       <FlatList
         data={filteredMovies}
-        renderItem={({ item }) => {
-          const posterUrl = `https://image.tmdb.org/t/p/w500${item.poster_path}`;
-
-          return (
-            <TouchableOpacity
-              onPress={() => navigate("MovieDetails", { movieId: item.id })}
-            >
-              <ImageBackground
-                source={{ uri: posterUrl }}
-                style={styles.movieContainer}
-                imageStyle={styles.movieBackgroundImage}
-              >
-                <Text style={styles.movieTitle}>{item.title}</Text>
-              </ImageBackground>
-            </TouchableOpacity>
-          );
-        }}
-        keyExtractor={(item) => item.id.toString()}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
-        contentContainerStyle={styles.contentContainerStyle}
+        renderItem={renderItem}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        ListFooterComponent={
+          isFetchingNextPage ? (
+            <ActivityIndicator size="large" color="#0000ff" />
+          ) : null
+        }
       />
     </View>
   );
@@ -136,10 +130,6 @@ const CategoryScreen = (props: Props) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  contentContainerStyle: {
-    flexGrow: 1,
-    padding: 20,
   },
   movieContainer: {
     height: 250,

@@ -1,5 +1,5 @@
 import { setSingleMovie } from "@/redux/singleMovieSlice";
-import { fetchSingleMovie } from "@/services/api";
+import { clearStorageCache, fetchSingleMovie } from "@/services/api";
 import { checkCache } from "@/utils";
 import { useRoute } from "@react-navigation/native";
 import { useCallback, useEffect, useState } from "react";
@@ -26,6 +26,7 @@ const MovieDetailsScreen = () => {
   const handleCheckCache = () => {
     checkCache(movie.id);
   };
+  // clearStorageCache()
   const getMovieDetails = useCallback(async () => {
     try {
       const fetchedMovie = await fetchSingleMovie(movieId);
